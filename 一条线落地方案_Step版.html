@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数据与图谱基建一条线落地方案</title>
+<style>
+:root{
+  --bg:#f7f8fb;--surface:#fff;--ink:#172033;--muted:#5e6a7d;--soft:#8b96a7;
+  --line:#dfe6ef;--line2:#eef2f7;--blue:#2563eb;--green:#059669;--cyan:#0891b2;
+  --amber:#b45309;--violet:#7c3aed;--red:#dc2626;--shadow:0 10px 26px rgba(23,32,51,.08);
+  --r:8px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",Arial,sans-serif;line-height:1.72}
+a{color:var(--blue);text-decoration:none}a:hover{text-decoration:underline}
+.top{position:sticky;top:0;z-index:20;background:rgba(247,248,251,.92);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.top-in{max-width:1220px;margin:0 auto;padding:12px 22px;display:flex;align-items:center;justify-content:space-between;gap:14px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:900}.mark{width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,var(--blue),var(--green))}
+.nav{display:flex;gap:6px;overflow-x:auto;white-space:nowrap}.nav a{padding:7px 9px;border-radius:7px;font-size:12px;font-weight:800;color:var(--muted)}.nav a:hover{background:#eef4ff;color:var(--blue);text-decoration:none}
+.shell{max-width:1220px;margin:0 auto;padding:0 22px 70px}
+.hero{padding:34px 0 22px;display:grid;grid-template-columns:1.12fr .88fr;gap:18px}
+.hero-main,.hero-side,.panel,.step{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+.hero-main{padding:30px}.mini{font-size:12px;color:var(--soft);font-weight:900;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px}
+h1{font-size:31px;line-height:1.24;margin:0 0 12px;letter-spacing:0}.hero-main p{margin:0;color:var(--muted);font-size:15px}
+.hero-side{padding:18px}.one-line{display:grid;gap:8px}.one-line div{display:grid;grid-template-columns:78px 1fr;gap:8px;align-items:center}.one-line b{font-size:12px;color:var(--blue)}.one-line span{display:block;background:#f8fafc;border:1px solid var(--line2);border-radius:7px;padding:7px 9px;font-size:12px;color:var(--muted)}
+.flow{display:grid;grid-template-columns:repeat(9,minmax(105px,1fr));gap:8px;margin-top:18px}.flow a{position:relative;display:block;padding:11px;border:1px solid var(--line);border-radius:var(--r);background:#fff;color:var(--ink);font-size:12px;font-weight:900;min-height:74px}.flow a small{display:block;margin-top:4px;color:var(--muted);font-weight:700;line-height:1.35}.flow a:after{content:"";position:absolute;right:-7px;top:50%;width:12px;height:12px;border-top:2px solid var(--line);border-right:2px solid var(--line);background:var(--bg);transform:translateY(-50%) rotate(45deg)}.flow a:last-child:after{display:none}.flow a:hover{text-decoration:none;border-color:var(--blue)}
+section{margin-top:22px}.head{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;margin-bottom:10px}.head h2{font-size:20px;margin:0}.head p{margin:0;color:var(--muted);font-size:13px}
+.step{padding:20px}.step-grid{display:grid;grid-template-columns:260px 1fr;gap:18px}.meta{display:grid;gap:10px;align-content:start}.box{border:1px solid var(--line2);background:#f8fafc;border-radius:7px;padding:11px}.box b{display:block;font-size:12px;color:#334155;margin-bottom:4px}.box span{font-size:12px;color:var(--muted)}
+.content h3{font-size:15px;margin:0 0 7px}.content p{margin:0 0 11px;color:var(--muted);font-size:13px}
+.tag{display:inline-block;font-size:11px;font-weight:900;border-radius:6px;padding:2px 7px;margin-bottom:8px}.blue{background:#eaf1ff;color:#1d4ed8}.green{background:#e9f8f1;color:#047857}.cyan{background:#e6f7fb;color:#0e7490}.amber{background:#fff4e5;color:#92400e}.violet{background:#f3edff;color:#6d28d9}.red{background:#fff0f0;color:#b91c1c}
+.code{font-family:Consolas,"Courier New",monospace;background:#0f172a;color:#e2e8f0;border-radius:var(--r);padding:13px;font-size:12px;overflow:auto;margin:10px 0}.code b{color:#93c5fd}
+.twocol{display:grid;grid-template-columns:1fr 1fr;gap:10px}.list{margin:8px 0 0;padding-left:18px;color:var(--muted);font-size:13px}.list li{margin:4px 0}
+.output{border-left:4px solid var(--green);background:#f1fbf6;color:#14532d;padding:11px 13px;border-radius:0 var(--r) var(--r) 0;font-size:13px;margin-top:10px}
+.warn{border-left:4px solid var(--amber);background:#fff8ed;color:#7c2d12;padding:11px 13px;border-radius:0 var(--r) var(--r) 0;font-size:13px;margin-top:10px}
+table{width:100%;border-collapse:collapse;font-size:13px;background:#fff}th,td{padding:10px 11px;border-bottom:1px solid var(--line2);text-align:left;vertical-align:top}th{background:#f8fafc;color:#334155;font-size:12px}td{color:var(--muted)}
+.final{padding:18px;background:#fff;border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+@media(max-width:1060px){.hero,.step-grid,.twocol{grid-template-columns:1fr}.flow{grid-template-columns:repeat(3,minmax(0,1fr))}.flow a:after{display:none}}
+@media(max-width:640px){.top-in{align-items:flex-start;flex-direction:column}h1{font-size:24px}.flow{grid-template-columns:1fr}.one-line div{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <div class="brand"><div class="mark"></div>一条线落地方案</div>
+    <nav class="nav">
+      <a href="#s1">采集</a><a href="#s2">清洗</a><a href="#s3">归一</a><a href="#s4">抽取</a><a href="#s5">标准化</a><a href="#s6">新岗位</a><a href="#s7">岗位更新</a><a href="#s8">建图</a><a href="#s9">API</a>
+    </nav>
+  </div>
+</header>
+
+<main class="shell">
+  <div class="hero">
+    <div class="hero-main">
+      <div class="mini">Step first, tool second</div>
+      <h1>数据与图谱基建，一条线干到底</h1>
+      <p>每个 Step 只服务一个目标，只选一个主工具。辅助工具只承担不同职责，避免“多个工具功能重合不知道怎么选”。最终产出一条能演示、能评测、能追溯证据的岗位能力图谱流水线。</p>
+      <div class="flow">
+        <a href="#s1">Step 1<small>MCP Jobs 采集</small></a>
+        <a href="#s2">Step 2<small>datasketch 去重</small></a>
+        <a href="#s3">Step 3<small>岗位语义归一</small></a>
+        <a href="#s4">Step 4<small>LLM 技能抽取</small></a>
+        <a href="#s5">Step 5<small>ESCO 标准化</small></a>
+        <a href="#s6">Step 6<small>新岗位发现</small></a>
+        <a href="#s7">Step 7<small>Java 能力更新</small></a>
+        <a href="#s8">Step 8<small>Neo4j 建图</small></a>
+        <a href="#s9">Step 9<small>API 与解释</small></a>
+      </div>
+    </div>
+    <aside class="hero-side">
+      <div class="mini">主线工具选择</div>
+      <div class="one-line">
+        <div><b>采集</b><span>MCP Jobs，不再混用多个爬虫</span></div>
+        <div><b>去重</b><span>datasketch，解决 JD 抄袭和模板重复</span></div>
+        <div><b>抽取</b><span>LLM JSON，Chinese-SkillSpan 只做标注规范</span></div>
+        <div><b>标准</b><span>ESCO 做骨架，O*NET/Lightcast 只辅助</span></div>
+        <div><b>系统</b><span>JobMatchAI 只借架构思想</span></div>
+      </div>
+    </aside>
+  </div>
+
+  <section id="s1">
+    <div class="head"><h2>Step 1：采集当前 JD</h2><p>目标：得到统一 raw_jd.jsonl</p></div>
+    <div class="step"><div class="step-grid">
+      <div class="meta">
+        <div class="box"><b>主工具</b><span>MCP Jobs</span></div>
+        <div class="box"><b>为什么</b><span>聚合 Boss、猎聘、智联、51job，字段更统一</span></div>
+        <div class="box"><b>辅助工具</b><span>无。这个 Step 不引入其他爬虫</span></div>
+      </div>
+      <div class="content">
+        <span class="tag blue">采集</span>
+        <h3>具体使用方式</h3>
+        <p>启动 MCP Jobs，固定查询词和城市，把原始结果原样保存。这个阶段不清洗、不抽技能，只负责可信落盘。</p>
+        <div class="code">npx -y mcp-jobs
+
+# 调试模式
+CRAWLER_HEADLESS=false CRAWLER_DEBUG=true npx -y mcp-jobs</div>
+        <div class="code">查询词：
+AI Agent工程师、智能体开发工程师、Agent应用开发、大模型应用工程师、RAG工程师、MCP开发工程师
+Java开发工程师、Java后端工程师、高级Java工程师、Java架构师</div>
+        <div class="twocol">
+          <div class="output"><b>输出</b><br>data/raw/raw_jd_2026_mcp_jobs.jsonl<br>data/raw/queries.yaml</div>
+          <div class="output"><b>验收</b><br>raw JD >= 3000；平台 >= 3；Agent >= 500；Java >= 800</div>
+        </div>
+        <div class="warn">注意：MCP Jobs 主要拿当前数据，不负责历史 2024 数据。历史窗口要么补公开历史样本，要么在方案里明确“当前市场快照 + 持续月度更新”。</div>
+      </div>
+    </div></div>
+  </section>
+
+  <section id="s2">
+    <div class="head"><h2>Step 2：清洗去重</h2><p>目标：得到 clean_jd.parquet</p></div>
+    <div class="step"><div class="step-grid">
+      <div class="meta">
+        <div class="box"><b>主工具</b><span>datasketch MinHash/LSH</span></div>
+        <div class="box"><b>辅助工具</b><span>pandas/polars 做字段处理，rapidfuzz 做轻量字符串匹配</span></div>
+        <div class="box"><b>不做</b><span>这个 Step 不抽技能、不判断新岗位</span></div>
+      </div>
+      <div class="content">
+        <span class="tag cyan">清洗</span>
+        <h3>具体操作</h3>
+        <p>先标准化字段，再用 hash 做精确去重，最后用 MinHash 找 JD 模板复制和近重复。</p>
+        <div class="code">from datasketch import MinHash, MinHashLSH
+
+lsh = MinHashLSH(threshold=0.8, num_perm=128)
+# title_clean + company + description_clean -> shingles -> MinHash</div>
+        <div class="code">quality_score =
+0.25 * 字段完整度
++ 0.25 * 描述长度合理性
++ 0.20 * 发布时间可信度
++ 0.15 * 来源可信度
++ 0.15 * 非模板/非重复程度</div>
+        <div class="twocol">
+          <div class="output"><b>输出</b><br>data/clean/clean_jd.parquet<br>data/report/cleaning_report.json</div>
+          <div class="output"><b>验收</b><br>clean JD >= 2000；重复率 < 5%；每条有 quality_score</div>
+        </div>
+      </div>
+    </div></div>
+  </section>
+
+  <section id="s3">
+    <div class="head"><h2>Step 3：岗位归一</h2><p>目标：每条 JD 都有 occupation_id</p></div>
+    <div class="step"><div class="step-grid">
+      <div class="meta">
+        <div class="box"><b>主工具</b><span>sentence-transformers</span></div>
+        <div class="box"><b>辅助工具</b><span>rapidfuzz 做明显同义合并；人工 alias 表做最终确认</span></div>
+      </div>
+      <div class="content">
+        <span class="tag violet">归一</span>
+        <h3>具体操作</h3>
+        <p>用岗位标题加描述关键词做 embedding 聚类，把同义岗位合并成标准岗位簇。</p>
+        <div class="code">from sentence_transformers import SentenceTransformer
+model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
+embeddings = model.encode(title_for_cluster_list)
+
+cosine_similarity >= 0.82 -> 候选同簇</div>
+        <div class="twocol">
+          <div class="output"><b>输出</b><br>occupation_clusters.json<br>jd_with_occupation.parquet<br>occupation_alias.csv</div>
+          <div class="output"><b>验收</b><br>Agent 标题召回 >= 90%；Java 误合并 <= 10%</div>
+        </div>
+      </div>
+    </div></div>
+  </section>
+
+  <section id="s4">
+    <div class="head"><h2>Step 4：技能抽取</h2><p>目标：每个技能都有证据句</p></div>
+    <div class="step"><div class="step-grid">
+      <div class="meta">
+        <div class="box"><b>主工具</b><span>LLM JSON 结构化抽取</span></div>
+        <div class="box"><b>辅助工具</b><span>Chinese-SkillSpan 做标注规范；SkillSpan 做评测思想；技能词典兜底召回</span></div>
+        <div class="box"><b>边界</b><span>LLM 只生成候选，不直接写入图谱</span></div>
+      </div>
+      <div class="content">
+        <span class="tag green">抽取</span>
+        <h3>具体操作</h3>
+        <p>LLM 输出固定 JSON，每个技能必须来自原文，并给出 evidence_sentence。然后用 100 条人工 gold 评测。</p>
+        <div class="code">{
+  "raw_text": "K8s",
+  "normalized_guess": "Kubernetes",
+  "type": "technical_skill",
+  "evidence_sentence": "熟悉 Docker/K8s，有微服务部署经验",
+  "confidence": 0.86
+}</div>
+        <div class="code">Prompt 约束：
+只从 JD 原文抽取，不允许补充常识。
+每个技能必须给出 evidence_sentence。
+不要抽“责任心、沟通能力、抗压能力”到技术技能主图。
+输出必须是 JSON。</div>
+        <div class="twocol">
+          <div class="output"><b>输出</b><br>skill_mentions.parquet<br>gold_jd_100.jsonl<br>skill_extraction_eval.json</div>
+          <div class="output"><b>验收</b><br>技术硬技能 span F1 >= 0.90；JSON 合法率 >= 98%</div>
+        </div>
+      </div>
+    </div></div>
+  </section>
+
+  <section id="s5">
+    <div class="head"><h2>Step 5：技能标准化</h2><p>目标：把 K8s / 容器编排归一成 Kubernetes</p></div>
+    <div class="step"><div class="step-grid">
+      <div class="meta">
+        <div class="box"><b>主工具</b><span>ESCO 离线 CSV</span></div>
+        <div class="box"><b>辅助工具</b><span>O*NET 只做 Java 基线解释；Lightcast 只做 top 技能抽样校验；中文 alias 表解决缩写和新词</span></div>
+      </div>
+      <div class="content">
+        <span class="tag amber">标准化</span>
+        <h3>具体操作</h3>
+        <p>先查人工别名表，再查 ESCO preferred/alternative labels，再用 embedding 做候选匹配。未命中但高频的新技术进入 SkillCandidate。</p>
+        <div class="code">raw_skill,normalized_skill,source,confidence
+K8s,Kubernetes,manual,0.98
+容器编排,Kubernetes,manual,0.90
+大模型,Large Language Models,manual,0.85
+MCP,Model Context Protocol,manual,0.80</div>
+        <div class="twocol">
+          <div class="output"><b>输出</b><br>skills_normalized.parquet<br>skill_alias.csv<br>skill_candidates.csv</div>
+          <div class="output"><b>验收</b><br>top 100 高频技能标准化率 >= 90%；新兴技能不丢弃</div>
+        </div>
+      </div>
+    </div></div>
+  </section>
+
+  <section id="s6">
+    <div class="head"><h2>Step 6：新岗位发现</h2><p>目标：证明 Agent 工程师是新兴岗位</p></div>
+    <div class="step"><div class="step-grid">
+      <div class="meta">
+        <div class="box"><b>主方法</b><span>Job-SDF 的时序数据结构</span></div>
+        <div class="box"><b>辅助输入</b><span>Step 3 岗位簇；Step 4/5 标准技能</span></div>
+        <div class="box"><b>不做</b><span>不完整复现复杂预测模型，只复刻需求序列和共现图结构</span></div>
+      </div>
+      <div class="content">
+        <span class="tag blue">发现</span>
+        <h3>具体操作</h3>
+        <p>按岗位和月份构造需求表、技能占比表、技能共现图，然后计算新岗位成熟度。</p>
+        <div class="code">demand[occupation_id, month] = 去重 JD 数
+skill_demand[occupation_id, skill_id, month] = 要求该技能的 JD 数
+skill_proportion = skill_demand / 该岗位当月 JD 总数</div>
+        <div class="code">maturity_score =
+0.30 * log(growth_ratio)
++ 0.20 * demand_recent
++ 0.20 * source_diversity
++ 0.15 * skill_coherence
++ 0.15 * taxonomy_gap</div>
+        <div class="twocol">
+          <div class="output"><b>输出</b><br>emerging_jobs_agent.json<br>agent_skill_profile.json<br>emerging_job_report.md</div>
+          <div class="output"><b>验收</b><br>至少 1 个新岗位案例；每个结论有 support_count / evidence_ids</div>
+        </div>
+      </div>
+    </div></div>
+  </section>
+
+  <section id="s7">
+    <div class="head"><h2>Step 7：既有岗位能力更新</h2><p>目标：输出 Java 新增、弱化、修改能力项</p></div>
+    <div class="step"><div class="step-grid">
+      <div class="meta">
+        <div class="box"><b>主方法</b><span>窗口技能占比 diff</span></div>
+        <div class="box"><b>辅助工具</b><span>O*NET 仅做既有岗位基线解释；Job-SDF 仅沿用表结构</span></div>
+        <div class="box"><b>为什么</b><span>这个目标本质是统计 diff，不需要再引入复杂模型</span></div>
+      </div>
+      <div class="content">
+        <span class="tag green">更新</span>
+        <h3>具体操作</h3>
+        <p>对 Java 岗位簇比较 old_window 和 new_window 的技能占比，按规则分成新增、增强、弱化、修改。</p>
+        <div class="code">p_old(skill) = old_window 中要求该技能的 Java JD 数 / old_window Java JD 总数
+p_new(skill) = new_window 中要求该技能的 Java JD 数 / new_window Java JD 总数
+delta = p_new - p_old
+growth = (p_new + 0.01) / (p_old + 0.01)</div>
+        <div class="code">新增：p_old < 0.05 AND p_new >= 0.12 AND growth >= 2
+增强：p_old >= 0.05 AND p_new >= 0.12 AND delta >= 0.10
+弱化：p_old >= 0.12 AND delta <= -0.10
+修改：技能仍存在，但上下文共现技能明显变化</div>
+        <div class="twocol">
+          <div class="output"><b>输出</b><br>job_evolution_java.json<br>java_update_report.md</div>
+          <div class="output"><b>验收</b><br>至少 5 个能力变化项；每项有 p_old / p_new / evidence_ids</div>
+        </div>
+      </div>
+    </div></div>
+  </section>
+
+  <section id="s8">
+    <div class="head"><h2>Step 8：Neo4j 建图</h2><p>目标：可查询、可追溯的岗位能力图谱</p></div>
+    <div class="step"><div class="step-grid">
+      <div class="meta">
+        <div class="box"><b>主工具</b><span>Neo4j Python Driver</span></div>
+        <div class="box"><b>辅助工具</b><span>无。先不引入复杂 KG 框架</span></div>
+      </div>
+      <div class="content">
+        <span class="tag violet">建图</span>
+        <h3>具体操作</h3>
+        <p>导入 JobPost、Occupation、Skill、Evidence、Snapshot 节点，再按月聚合生成 REQUIRES_SKILL 关系。</p>
+        <div class="code">JobPost -[:POSTED_AS]-> Occupation
+JobPost -[:MENTIONS_SKILL]-> Skill
+Occupation -[:REQUIRES_SKILL {month, support_count, support_ratio, confidence}]-> Skill
+Skill -[:RELATED_TO {cooccur_count}]-> Skill
+Evidence -[:SUPPORTS]-> REQUIRES_SKILL</div>
+        <div class="twocol">
+          <div class="output"><b>输出</b><br>scripts/import_neo4j.py<br>neo4j_dump/<br>docs/cypher_queries.md</div>
+          <div class="output"><b>验收</b><br>节点 >= 2000；关系 >= 5000；能查岗位、技能、证据、时间变化</div>
+        </div>
+      </div>
+    </div></div>
+  </section>
+
+  <section id="s9">
+    <div class="head"><h2>Step 9：API 与解释层</h2><p>目标：前端能展示结论和证据</p></div>
+    <div class="step"><div class="step-grid">
+      <div class="meta">
+        <div class="box"><b>主参考</b><span>JobMatchAI 架构思想</span></div>
+        <div class="box"><b>辅助工具</b><span>FastAPI 做接口；Elasticsearch 可选做全文检索</span></div>
+        <div class="box"><b>不照搬</b><span>不复制 JobMatchAI 业务，只借确定性计算 + LLM 解释分离</span></div>
+      </div>
+      <div class="content">
+        <span class="tag red">服务</span>
+        <h3>具体操作</h3>
+        <p>算法层先算出 growth_ratio、support_count、confidence、evidence_ids；LLM 只能基于这些结果解释，不能改变分数或补充结论。</p>
+        <div class="code">GET /api/emerging_jobs
+GET /api/job_evolution?occupation=Java开发工程师
+GET /api/graph_data?occupation=AI Agent工程师&month=2026-06
+GET /api/evidence?evidence_id=xxx</div>
+        <div class="code">LLM 解释 prompt：
+你只能根据以下 JSON 和 evidence 解释，不允许补充外部常识。
+如果 evidence 不足，输出“证据不足”。</div>
+        <div class="twocol">
+          <div class="output"><b>输出</b><br>backend/api.py<br>backend/schemas.py<br>data/api_mock/*.json</div>
+          <div class="output"><b>验收</b><br>4 个 API 返回 JSON；每个前端结论可点开 evidence</div>
+        </div>
+      </div>
+    </div></div>
+  </section>
+
+  <section>
+    <div class="head"><h2>最终交付物</h2><p>按这个清单检查数据组完成度</p></div>
+    <div class="final" style="overflow:auto">
+      <table>
+        <thead><tr><th>阶段</th><th>交付物</th></tr></thead>
+        <tbody>
+          <tr><td>采集</td><td>data/raw/raw_jd_2026_mcp_jobs.jsonl</td></tr>
+          <tr><td>清洗</td><td>data/clean/clean_jd.parquet</td></tr>
+          <tr><td>岗位归一</td><td>data/processed/jd_with_occupation.parquet</td></tr>
+          <tr><td>技能抽取</td><td>data/processed/skill_mentions.parquet、data/gold/gold_jd_100.jsonl</td></tr>
+          <tr><td>标准化</td><td>data/processed/skills_normalized.parquet</td></tr>
+          <tr><td>分析</td><td>data/analytics/emerging_jobs_agent.json、data/analytics/job_evolution_java.json</td></tr>
+          <tr><td>图谱</td><td>neo4j_dump/、docs/cypher_queries.md</td></tr>
+          <tr><td>服务</td><td>backend/api.py、data/api_mock/*.json</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+</body>
+</html>

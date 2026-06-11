@@ -1,0 +1,22 @@
+{
+  "description": "第一批中文岗位 JD 小样本采集配置。当前优先使用企业官网公开招聘接口。",
+  "defaults": {
+    "page": 1,
+    "pageSize": 10,
+    "maxPages": 1
+  },
+  "queries": [
+    {
+      "keyword": "AI Agent 工程师",
+      "cities": ["北京", "上海"]
+    },
+    {
+      "keyword": "大模型应用开发",
+      "cities": ["北京", "上海"]
+    },
+    {
+      "keyword": "Java 开发工程师",
+      "cities": ["合肥", "上海"]
+    }
+  ]
+}

@@ -4,6 +4,9 @@
 # Uploads directory
 uploads/
 
+# Local browser login state for dataset collection
+dataset/auth/
+
 # Local development dependencies and caches
 node_modules/
 frontend-src/node_modules/

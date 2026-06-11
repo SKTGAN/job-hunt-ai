@@ -1,0 +1,15 @@
+{
+  "name": "job-hunt-ai-dataset",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Chinese job JD collection and normalization tools for job-hunt-AI.",
+  "scripts": {
+    "collect": "node scripts/collect_public_jobs.mjs",
+    "collect:tencent": "node scripts/collect_public_jobs.mjs --source tencent",
+    "normalize": "node scripts/normalize_jobs.mjs",
+    "pipeline": "npm run collect && npm run normalize"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
