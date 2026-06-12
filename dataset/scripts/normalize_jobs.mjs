@@ -13,6 +13,7 @@ const csvPath = path.join(cleanedDir, "chinese_jobs_normalized.csv");
 
 const outputFields = [
   "source",
+  "source_name",
   "keyword",
   "city",
   "crawl_time",
@@ -23,6 +24,7 @@ const outputFields = [
   "tags",
   "job_description",
   "source_url",
+  "publish_time",
   "raw"
 ];
 
@@ -141,6 +143,7 @@ function normalizeRecord(query, job) {
 
   return {
     source: getFirst(merged, ["source", "platform", "site"]) || "mcp-jobs",
+    source_name: getFirst(merged, ["source_name", "sourceName", "platform_name", "site_name"]),
     keyword: query.search_args?.keyword || "",
     city: query.search_args?.city || "",
     crawl_time: query.searched_at || "",
@@ -151,6 +154,7 @@ function normalizeRecord(query, job) {
     tags: normalizeTags(merged),
     job_description: jobDescription,
     source_url: sourceUrl,
+    publish_time: getFirst(merged, ["publish_time", "publishTime", "releaseDate", "lastUpdateDate", "LastUpdateTime"]),
     raw: {
       list_item: listItem,
       detail,

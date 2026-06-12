@@ -1,45 +1,37 @@
-# 中文岗位 JD 数据采集操作手册
+# 中文岗位 JD 数据采集说明
 
-这个目录用于采集、保存和清洗中文岗位 JD 数据。当前阶段已经放弃 Boss/猎聘等强反爬招聘平台，改用更稳定的企业官网公开招聘接口。
+这个目录用于采集、保存和清洗中文岗位 JD 数据。当前主线已经从 Boss/猎聘这类强反爬招聘平台，切换为更稳定、可复现的企业官网公开招聘接口。
 
-## 1. 当前数据源
+## 当前数据源
 
-第一版稳定数据源：
-
-| 数据源 | 类型 | 说明 |
+| 数据源 | 类型 | 当前用途 |
 | --- | --- | --- |
-| 腾讯招聘公开接口 | 企业官网招聘 | 可直接返回 JSON，包含岗位名称、城市、职责、更新时间、岗位链接等字段 |
+| 腾讯招聘公开接口 | 企业官网招聘 | 补充互联网、云、AI、产品、测试、运营等岗位 JD |
+| 华为招聘公开接口 | 企业官网招聘 | 扩大企业范围，补充 ICT、研发、云、数据、硬件、解决方案等岗位 JD |
+| 政府/公务员/事业单位职位表 | 官方表格导入 | 补充公共部门岗位、专业要求、学历要求、招考人数等结构化字段 |
 
-后续可以继续增加：
+这两个源都返回 JSON，适合比赛原型阶段做“岗位 JD 抓取、清洗、标注、岗位-能力图谱构建”。
 
-- 科大讯飞招聘官网
-- 华为招聘官网
-- 阿里/百度/京东/美团等企业招聘官网
-- 政府公开职业标准与新职业数据
+政府/公务员/事业单位数据通常由官方网站发布为 Excel/CSV 附件，当前采用“下载官方职位表后本地导入”的方式，稳定性比直接爬网页更高。
 
-## 2. 安装依赖
+## 安装
 
-当前脚本只使用 Node.js 内置 `fetch`，没有额外运行依赖。为了同步 `package-lock.json`，仍建议执行：
+当前脚本只使用 Node.js 内置能力，没有额外运行依赖。仍建议执行一次安装，保证 `package-lock.json` 与本地环境一致：
 
 ```powershell
 cd C:\Users\A\Desktop\揭榜挂帅\job-hunt-AI\dataset
 npm install
 ```
 
-## 3. 目录结构
+如果要导入公务员或事业单位 `.xlsx/.xls/.csv` 职位表，还需要 Python 表格依赖：
 
-```text
-dataset/
-  config/seed_queries.json          # 第一批岗位关键词和城市
-  scripts/collect_public_jobs.mjs   # 企业官网公开接口采集脚本
-  scripts/normalize_jobs.mjs        # 清洗 raw JSON，导出 JSONL 和 CSV
-  raw/chinese_jobs/                 # 原始采集结果
-  cleaned/                          # 清洗结果
+```powershell
+python -m pip install -r requirements.txt
 ```
 
-## 4. 采集岗位 JD
+## 采集 3000 条岗位 JD
 
-运行：
+默认命令会同时采集腾讯和华为，目标 3000 条：
 
 ```powershell
 npm run collect
@@ -48,18 +40,29 @@ npm run collect
 等价于：
 
 ```powershell
-npm run collect:tencent
+node scripts/collect_public_jobs.mjs --source all --target 3000
 ```
 
-采集结果会保存到：
+也可以单独采集某个企业：
+
+```powershell
+npm run collect:tencent
+npm run collect:huawei
+```
+
+原始结果会保存到：
 
 ```text
-dataset/raw/chinese_jobs/*_tencent_public_jobs.json
+dataset/raw/chinese_jobs/*_public_jobs.json
 ```
 
-## 5. 清洗并导出 JSONL 和 CSV
+raw 文件会保留每个查询的页码、接口 URL、返回数量、错误信息和岗位原始字段，方便后续追溯。
 
-采集后运行：
+默认配置开启 `domesticOnly: true`，会跳过明显的海外岗位，例如东京、新加坡、美国、欧洲等地点，尽量保证当前数据集服务“本地中文岗位 JD”目标。
+
+## 清洗并导出 JSONL/CSV
+
+采集完成后运行：
 
 ```powershell
 npm run normalize
@@ -72,15 +75,49 @@ dataset/cleaned/chinese_jobs_normalized.jsonl
 dataset/cleaned/chinese_jobs_normalized.csv
 ```
 
-如果要指定 raw 文件：
+如果要指定某个 raw 文件：
 
 ```powershell
 node scripts/normalize_jobs.mjs --input raw/chinese_jobs/某个文件.json
 ```
 
-CSV 带 UTF-8 BOM，方便 Excel/WPS 打开。数组字段如 `tags` 会用 `;` 拼接，长文本会做 CSV 转义。
+CSV 带 UTF-8 BOM，方便 Excel/WPS 打开。数组字段如 `tags` 会用 `;` 拼接，长文本 JD 会保留完整内容并做 CSV 转义。
 
-## 6. 当前第一批采集范围
+## 导入政府/公务员职位表
+
+把国家公务员、省考、事业单位等官方职位表放到：
+
+```text
+dataset/raw/government_jobs/
+```
+
+支持 `.xlsx`、`.xls`、`.csv`。导入示例：
+
+```powershell
+python scripts/import_government_jobs.py --input raw/government_jobs/2026国家公务员职位表.xlsx --source-name 国家公务员2026职位表
+```
+
+如果 Excel 有多个 sheet，可以指定：
+
+```powershell
+python scripts/import_government_jobs.py --input raw/government_jobs/某省省考职位表.xlsx --sheet 0 --source-name 某省省考职位表
+```
+
+导入后会生成：
+
+```text
+dataset/raw/chinese_jobs/*_government_jobs.json
+```
+
+然后继续用同一个清洗命令：
+
+```powershell
+npm run normalize -- --input raw/chinese_jobs/某个_government_jobs.json
+```
+
+导入器会尽量识别这些常见列：`部门名称`、`招录机关`、`职位名称`、`职位代码`、`工作地点`、`学历`、`学位`、`专业`、`基层工作最低年限`、`招考人数`、`职位简介`、`备注`。
+
+## 当前采集范围
 
 配置文件：
 
@@ -88,22 +125,30 @@ CSV 带 UTF-8 BOM，方便 Excel/WPS 打开。数组字段如 `tags` 会用 `;` 
 dataset/config/seed_queries.json
 ```
 
-首批关键词：
+当前围绕赛题扩展了这些岗位群：
 
-- `AI Agent 工程师`：北京、上海
-- `大模型应用开发`：北京、上海
-- `Java 开发工程师`：合肥、上海
+- 人工智能与大模型
+- 算法与机器学习
+- 数据工程与数据治理
+- Java/Python/软件工程
+- 云计算与云原生
+- 物联网、嵌入式与智能硬件
+- 网络安全
+- 测试与质量保障
+- 产品与业务分析
+- 行业解决方案
+- 运维与平台工程
+- 数据库
 
-默认每个关键词/城市采集第 1 页，每页 10 条。
+最后保留了一个“全量补充岗位”查询，用于在关键词结果不足时继续补齐目标数量。
 
-注意：腾讯招聘接口不一定每个城市都有结果。合肥可能返回空，但这不是脚本错误。
+## 清洗字段
 
-## 7. 数据字段
-
-清洗后的每条记录包含：
+每条标准记录包含：
 
 ```text
 source
+source_name
 keyword
 city
 crawl_time
@@ -114,31 +159,62 @@ location
 tags
 job_description
 source_url
+publish_time
 raw
 ```
 
 其中：
 
-- `job_description` 来自企业官网岗位职责字段。
-- `source_url` 是岗位详情页链接。
-- `raw` 保留原始企业接口字段，便于后续追溯证据。
+- `job_description`：岗位职责和任职要求文本。
+- `tags`：企业接口里的岗位族、部门、产品线、经验等标签。
+- `raw`：保留企业接口原始字段，便于后续做字段扩展或证据追溯。
 
-## 8. 为什么删除 Boss/猎聘/MCP 方案
+## 后续建议
 
-已验证的问题：
+1. 抽查 CSV 中 30-50 条 JD，确认岗位标题、企业、职责文本没有串列。
+2. 用 `job_description` 做技能短语抽取，形成“岗位-技能”初始边。
+3. 用 `source_name`、`publish_time`、`location` 支撑后续动态演化和区域分析。
+4. 后续继续增加百度、阿里、美团、科大讯飞、小米、京东等企业官网公开源，提高行业覆盖度。
+5. 公共部门数据优先收集国家公务员、省考、事业单位、国企校招/社招职位表，形成“企业岗位”和“公共岗位”的对照样本。
+## 合并企业岗位与公务员岗位
 
-- `mcp-jobs@1.4.0` NPM 包没有正确暴露 `bin`。
-- Boss 直聘触发安全验证或空白页。
-- 猎聘公开页没有稳定返回岗位卡片。
-- 登录态采集仍会被平台自动化检测影响。
+在 `dataset/` 目录执行：
 
-比赛当前阶段更需要稳定、可复现、可追溯的数据闭环，所以优先使用企业官网公开数据。
+```powershell
+npm run merge:jobs
+```
 
-## 9. 下一步
+输入文件：
 
-1. 执行 `npm run collect`。
-2. 执行 `npm run normalize`。
-3. 检查 CSV 是否有真实岗位。
-4. 从 CSV 中挑选 100 条 JD 做人工标注。
-5. 后续再把 JSONL/CSV 写入 Elasticsearch 和 Neo4j。
+- `cleaned/enterprise_jobs_3000_normalized.jsonl`
+- `cleaned/government_jobs_2026_normalized.jsonl`
 
+输出文件：
+
+- `cleaned/all_jobs_23714_normalized.jsonl`
+- `cleaned/all_jobs_23714_normalized.csv`
+
+合并脚本保留全部岗位，并增加 `job_id`、`source_type`、`content_hash`、`is_content_duplicate` 和 `duplicate_of`。内容重复岗位只做标记，不会在合并阶段直接删除，便于后续按检索实验需要选择保留或折叠。
+
+## 处理中文简历
+
+在 `dataset/` 目录执行：
+
+```powershell
+npm run process:resumes
+```
+
+脚本同时读取原版和修订版中文简历，使用修订版作为当前辅助筛选标签，并保留原版标签用于审计。姓名、性别、年龄、电话和邮箱不会写入处理结果。
+
+主要输出：
+
+- `processed/resumes_anonymized.jsonl`
+- `processed/resumes_anonymized.csv`
+- `processed/resume_quality_report.json`
+- `benchmark/resume_train_manifest.jsonl`
+- `benchmark/resume_dev_manifest.jsonl`
+- `benchmark/resume_test_manifest.jsonl`
+- `annotations/pilot_resumes_30.jsonl`
+- `annotations/resume_job_gold_template.csv`
+
+`pilot_resumes_30.jsonl` 从 10 个岗位族中各选择 3 份简历。当前只生成简历样本，岗位候选需要在 BM25 索引完成后补充。
