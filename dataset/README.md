@@ -218,3 +218,28 @@ npm run process:resumes
 - `annotations/resume_job_gold_template.csv`
 
 `pilot_resumes_30.jsonl` 从 10 个岗位族中各选择 3 份简历。当前只生成简历样本，岗位候选需要在 BM25 索引完成后补充。
+# 30 份简历 BM25 + BGE-M3 实验
+
+确保 Docker 中的 Elasticsearch 已启动，并且 `chinese_jobs_v1` 已写入统一岗位主表后运行：
+
+```powershell
+cd dataset
+npm run experiment:test30
+```
+
+也可以分阶段执行，首次运行 BGE-M3 会下载约 2.27GB 模型权重：
+
+```powershell
+python scripts/run_bm25_bge_m3_experiment.py --stage bm25
+python scripts/run_bm25_bge_m3_experiment.py --stage rerank --batch-size 2 --max-length 1024
+```
+
+RTX 4060 8GB 建议使用 `--batch-size 2`。结果输出到 `dataset/retrieval/test_30/`：
+
+- `bm25_top200_30.jsonl`：30 份简历各自完整的 BM25 Top200。
+- `bge_m3_reranked_top200_30.jsonl`：相同候选经过 BGE-M3 余弦相似度重排后的顺序。
+- `resume_job_silver_30.jsonl`：6000 个简历-岗位对的可解释银标。
+- `resume_job_rankings_30.csv`：适合 Excel/WPS 查看和筛选的扁平排名表。
+- `experiment_summary.json`：运行耗时、相似度、排名变化和银标分布统计。
+
+银标是自动规则标签，只用于开发、抽样和人工金标候选池构造，不能当作最终测试真值。

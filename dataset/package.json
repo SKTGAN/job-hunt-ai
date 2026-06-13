@@ -11,6 +11,7 @@
     "import:government": "python scripts/import_government_jobs.py",
     "merge:jobs": "python scripts/merge_job_datasets.py",
     "process:resumes": "python scripts/process_chinese_resumes.py",
+    "experiment:test30": "python scripts/run_bm25_bge_m3_experiment.py",
     "normalize": "node scripts/normalize_jobs.mjs",
     "pipeline": "npm run collect && npm run normalize"
   },

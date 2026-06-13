@@ -1,0 +1,61 @@
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    expose:
+      - "9200"
+    volumes:
+      - reproduce_elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  toolkit:
+    image: job-hunt-ai-toolkit:2026-06-13
+    build:
+      context: ./dataset
+      dockerfile: Dockerfile.reproduce
+    working_dir: /workspace
+    environment:
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      HF_HOME: /models/huggingface
+      HF_ENDPOINT: ${HF_ENDPOINT:-https://huggingface.co}
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./:/workspace
+      - reproduce_huggingface_cache:/models/huggingface
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    command: ["sleep", "infinity"]
+
+  collector:
+    image: node:20-bookworm-slim
+    working_dir: /workspace/dataset
+    volumes:
+      - ./:/workspace
+    profiles: ["collection"]
+    command: ["sleep", "infinity"]
+
+  neo4j:
+    image: neo4j:5.14-community
+    environment:
+      NEO4J_AUTH: neo4j/password
+      NEO4J_PLUGINS: '["apoc"]'
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - reproduce_neo4j_data:/data
+    profiles: ["graph"]
+
+volumes:
+  reproduce_elasticsearch_data:
+  reproduce_huggingface_cache:
+  reproduce_neo4j_data:

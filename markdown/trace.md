@@ -515,3 +515,139 @@
   - 一次临时验证断言对岗位族计数的写法不正确，但数据实际为 10 类各 3 份；修正验证逻辑后不影响生成文件。
 - 下一步建议：
   - 建立统一岗位主表的 Elasticsearch BM25 索引，为 `pilot_resumes_30.jsonl` 中每份简历生成 Top200，再构造每份约 20 个岗位的人工标注池。
+
+## 2026-06-12 23:14 - 跑通统一岗位主表 Elasticsearch BM25 检索
+
+- 步骤：
+  - 检查 Docker 服务，确认 `jobmatch_elasticsearch` 使用 Elasticsearch 8.11.0，数据卷正常，旧 `jobs` 索引为空。
+  - 发现 Windows 宿主机访问 `localhost:9200` 一度返回空响应；确认容器内部 Elasticsearch 正常后重启容器，并统一让本地脚本使用 `http://127.0.0.1:9200`。
+  - 安装与后端要求一致的 Python Elasticsearch 8.x 客户端。
+  - 新增 `backend-src/app/services/chinese_bm25_service.py`，定义 `chinese_jobs_v1` 索引、字段映射、BM25 参数、字段加权查询、重复岗位过滤和统计接口。
+  - 新增 `backend-src/scripts/index_chinese_jobs.py`，把 `dataset/cleaned/all_jobs_23714_normalized.jsonl` 批量写入 Elasticsearch。
+  - 新增 `backend-src/scripts/search_chinese_jobs.py`，支持命令行查询、企业/公务员筛选、地区筛选、Top1-200 返回和 JSON 输出。
+  - 新增 `backend-src/app/api/endpoints/bm25.py`，提供 `POST /api/v1/bm25/search` 和 `GET /api/v1/bm25/stats`。
+  - 修改 `backend-src/app/main.py`，注册中文 BM25 API 路由。
+  - 运行 Python 语法检查、Git 差异检查、全量导入和三组检索测试。
+- 目的：
+  - 将统一岗位主表变成可快速查询的倒排索引，为后续“简历 -> BM25 Top200 -> 中文 Embedding 重排”提供第一阶段候选召回。
+  - 通过标题、标签、关键词和 JD 描述的不同权重，使标题和技能直接匹配的岗位优先出现。
+  - 保留企业和公务员两类岗位的统一检索入口，同时允许按 `source_type` 和地区过滤。
+- 效果/当前成果：
+  - 新索引名称为 `chinese_jobs_v1`，未覆盖原项目的英文 `jobs` 索引。
+  - BM25 参数为 `k1=1.2`、`b=0.75`；字段权重为岗位标题 6、标签 5、采集关键词 4、JD 描述 2.5、单位 1.5、地点 1.2、汇总文本 1。
+  - 23714 条岗位全部写入成功，失败 0 条；其中 1628 条内容重复记录保留在索引中，但查询默认排除。
+  - “Python 后端开发”企业查询命中 1736 条，Elasticsearch 耗时 26ms；Top5 主要为后端、研发和客户端开发岗位。
+  - “大模型 人工智能 算法”企业查询命中 2282 条，耗时 29ms；Top5 均为大模型、具身智能或算法岗位。
+  - “法学 行政管理 公务员”公务员查询命中 19802 条，耗时 49ms；Top5 为行政执法、综合管理和财务管理岗位。
+  - 使用一段计算机/软件工程简历式长查询成功返回 Top200，Elasticsearch 耗时 71ms。
+  - 使用 FastAPI `TestClient` 验证新增接口：统计接口返回 200 和 23714 条文档，检索接口返回 200 和指定的 3 条企业岗位。
+  - 详细实现和验证结果已写入 `markdown/report_BM25.md`。
+- 运行问题记录：
+  - 本机最初未安装 Python `elasticsearch` 包，已安装 `elasticsearch-8.19.3`；项目依赖文件原本已声明 `elasticsearch>=8.10.0,<9.0.0`，无需修改依赖版本范围。
+  - 首次加载 FastAPI BM25 路由时，本机缺少现有后端声明的 `neo4j` Python 驱动；补齐依赖后请求模型和路由导入验证通过。
+  - Docker 长时间运行或休眠后出现过 `localhost:9200` 空响应，但容器内部正常；重启 Elasticsearch 后恢复。脚本默认使用 `127.0.0.1`，减少本机代理或 localhost 解析影响。
+  - 当前 `docker-compose.yml` 的 backend 仍使用作者预构建镜像，因此新 API 代码尚未进入正在运行的 `jobmatch_backend` 容器；当前已经通过本地脚本和 Elasticsearch 实际查询验证核心链路。
+  - 当前中文分析器使用 Elasticsearch 内置 `standard` tokenizer，优点是不依赖额外插件，缺点是中文词语边界不如 IK 或领域词典精确。
+- 下一步建议：
+  - 对 `pilot_resumes_30.jsonl` 批量生成每份简历的 BM25 Top200，并保存候选池。
+  - 使用 `BAAI/bge-m3` 或 Qwen Embedding 对 Top200 进行语义相似度重排。
+  - 从 Top200 中按 BM25、Embedding、随机负样本混合抽取约 20 条，开展第一轮人工金标标注并计算 `Recall@200`。
+  - 后续若需要通过前端调用新接口，再把本地 `backend-src` 构建为 Docker 镜像，替换当前作者预构建 backend 镜像。
+
+## 2026-06-13 01:25 - 完成 30 份简历 BM25 Top200、BGE-M3 重排与银标实验
+
+- 步骤：
+  - 核对 `dataset/annotations/pilot_resumes_30.jsonl`，确认共有 30 份脱敏简历，覆盖 10 个技术岗位族，每类 3 份。
+  - 新增 `dataset/config/job_family_keywords.json`，为 10 个岗位族配置可解释的岗位标题和描述关键词。
+  - 新增 `dataset/scripts/run_bm25_bge_m3_experiment.py`，实现 BM25 批量召回、BGE-M3 向量化、余弦相似度重排、银标生成和 CSV/JSONL 输出。
+  - 修改 `dataset/package.json`，增加 `npm run experiment:test30`。
+  - 修改 `dataset/requirements.txt`，补充 PyTorch 和 Transformers 依赖。
+  - 更新 `dataset/README.md`，补充实验运行命令、显存建议和输出文件说明。
+  - 对 30 份简历逐份查询 Elasticsearch，仅检索 `enterprise` 岗位，每份保存 Top200。
+  - 下载并本地缓存 `BAAI/bge-m3` 约 2.27GB 权重，使用 RTX 4060、FP16 生成 1024 维向量。
+  - 对 30 份简历和 587 个唯一候选岗位共 617 段文本编码，在每份简历自己的 BM25 Top200 内计算余弦相似度并重排。
+  - 根据语义排名、BM25 排名、技能覆盖和岗位族匹配生成 6000 对自动银标。
+  - 检查 30 份 BM25 和重排结果均恰好包含 200 条，排名均为 1-200，6000 个简历-岗位组合无重复。
+- 目的：
+  - 跑通“简历 -> BM25 Top200 -> BGE-M3 语义重排 -> 自动银标”的第一版中文人岗匹配实验链路。
+  - 保存每层排序的完整结果，为后续人工金标、消融实验和 Neo4j 图谱增强提供固定候选池。
+- 效果/当前成果：
+  - BM25 共生成 6000 个候选，批量查询约 1.93 秒；ES 延迟 P50 为 49ms，P95 为 95.2ms。
+  - 30 份简历的候选合并后有 587 个唯一岗位，说明不同简历的 Top200 重叠较高，当前企业数据源主要集中于腾讯和华为。
+  - BGE-M3 实际编码 617 段文本，耗时 21.65 秒；向量维度 1024，最大长度 1024。
+  - 余弦相似度范围 0.4076-0.7212，均值 0.5514。
+  - 语义排序与 BM25 排序的平均绝对名次变化为 60.34，Top10 平均重合率仅 2.67%。
+  - 银标 0/1/2/3 级数量分别为 3159、2445、378、18。
+  - BGE-M3 语义 Top1 的岗位族明显匹配率约为 40%，BM25 Top1 约为 6.7%；语义模型有改善，但仍出现财经专员、物流经理、前后端混淆等明显错误，不能直接作为最终推荐排序。
+  - 完整结果位于 `dataset/retrieval/test_30/`，实验分析位于 `markdown/test_30.md`。
+- 运行问题记录：
+  - 本机最初缺少 Transformers；首次依赖安装超时，但 Transformers 主体已安装成功。
+  - Hugging Face 官方下载长时间只得到 tokenizer，未下载模型权重；改用镜像地址直接下载 2.27GB `pytorch_model.bin` 后解决。
+  - 在权重未完整时启动的旧 Python 进程长期停在模型加载前，GPU 利用率为 0；终止旧进程后最小模型加载测试通过。
+  - 首次批量编码使用 batch 4，在 616/617 时发生 CUDA 显存不足；增加逐批释放中间张量和 CUDA 缓存，并降为 batch 2 后全部完成。
+  - 当前候选只使用企业岗位，因为这 30 份均为技术简历；公务员岗位需要专业、学历、政治面貌等硬条件，应另建实验，不能与企业技术岗直接混排。
+- 下一步建议：
+  - 把岗位族一致性改为重排前的门控或强特征，修复前端/后端、移动端/服务器、运维/物流等跨岗位族误排。
+  - 从每份简历候选中混合抽取 BM25 高排、BGE-M3 高排、两者分歧样本和随机负样本，构造约 20 对人工金标池。
+  - 加入 Cross-Encoder 或领域微调模型，对 Top50 做第二次精排。
+  - 在 Neo4j 中建立岗位、岗位族、技能、技能别名和关联技能图，用于同义词扩展、技能缺口解释和候选扩展，并通过消融实验验证是否提升金标指标。
+
+## 2026-06-13 02:05 - 重写项目总 README 和复现说明
+
+- 步骤：
+  - 检查根目录原 README、`dataset`、`backend-src`、`frontend-src`、Docker Compose 和各脚本实际参数。
+  - 将原作者英文演示包 README 重写为当前中文本地化项目总说明。
+  - 增加当前已完成与尚未完成状态，明确前端尚未适配中文 BM25/BGE-M3 流程，Docker 中的 backend/frontend 仍是原作者预构建镜像。
+  - 增加岗位/简历离线准备数据流，以及简历 BM25 Top200、BGE-M3 重排、银标生成的预测数据流。
+  - 说明 `dataset`、`markdown`、`backend-src` 和 `frontend-src` 的目录职责与关键文件。
+  - 增加从已有岗位快照复现 30 份简历预测的完整命令，包括 Python 环境、Elasticsearch、岗位索引、BM25 和 BGE-M3。
+  - 增加重新采集腾讯/华为岗位、导入公务员职位表、清洗、合并和简历预处理的命令。
+  - 在 `dataset/requirements.txt` 增加 Elasticsearch 8.x Python 客户端，使数据实验依赖可一次安装。
+- 目的：
+  - 让新的复现者能够区分原作者功能、当前已实现功能和仍在规划中的功能。
+  - 避免复现者误以为执行 `docker compose up` 后即可使用本地新增的中文预测和前端界面。
+  - 提供从数据采集、预处理、索引到 30 份简历预测的可执行入口。
+- 效果/当前成果：
+  - 根 `README.md` 已成为当前项目总入口，包含进度、双数据流、代码架构、环境要求、预测复现、数据采集复现、Docker 状态和下一阶段。
+  - 明确当前可靠复现方式为“Docker 运行 Elasticsearch + 本地 Python 运行中文索引和 BGE-M3 实验”。
+  - 明确 BGE-M3 首次需要下载约 2.27GB 权重，RTX 4060 8GB 推荐 batch size 2。
+  - 明确当前银标公式和边界：银标不是人工金标，不能用于宣称真实准确率。
+- 运行问题记录：
+  - `normalize_jobs.mjs` 没有 `--help` 参数，直接附加 `--help` 会按默认输入执行清洗；README 因此只记录经过核对的 `--input`、`--jsonl` 和 `--csv` 参数。
+  - 当前企业公开接口可能随时间调整，重新采集的数量不保证与仓库快照完全一致，README 已明确该限制。
+- 下一步建议：
+  - 新增独立 BGE-M3 Docker 服务和持久化 Hugging Face 模型缓存。
+  - 修改 `docker-compose.yml`，使用本地构建的中文 backend，而不是原作者预构建镜像。
+  - 完成前端中文岗位检索、简历上传和推荐结果展示适配。
+
+## 2026-06-13 12:52 - 增加 Docker 全流程复现环境并验证当前预测功能
+
+- 步骤：
+  - 新增 `dataset/Dockerfile.reproduce` 和 `dataset/.dockerignore`，基于原项目 backend 镜像构建包含当前数据实验依赖的 `job-hunt-ai-toolkit:2026-06-13`。
+  - 新增 `docker-compose.reproduce.yml`，隔离运行 Elasticsearch、toolkit、可选 Node.js 采集容器和可选 Neo4j；岗位索引、模型缓存和图数据库均使用 Docker 卷持久化。
+  - 新增 `docker-compose.reproduce.gpu.yml`，为 toolkit 开启 NVIDIA GPU。
+  - 新增 Windows `scripts/reproduce.ps1` 和 Linux/macOS `scripts/reproduce.sh`，支持 `all/index/bm25/rerank` 分阶段复现。
+  - 将一键脚本的 Elasticsearch 启动检查改为 60 秒健康轮询，绕开部分 Docker Desktop 版本中 `docker compose --wait` 的状态 API 异常。
+  - 修改 BGE-M3 加载逻辑，先用 `snapshot_download` 将模型名解析为本地 snapshot 路径，再交给 Transformers 加载，避免缓存完整时 tokenizer 仍访问 Hugging Face 元数据。
+  - 在 `dataset/requirements.txt` 显式加入 `huggingface_hub`，使模型 snapshot 下载与缓存解析不依赖 Transformers 的间接依赖声明。
+  - 更新根 `README.md`，增加所需镜像、系统要求、GPU/CPU 命令、模型缓存、分阶段运行和容器停止方式。
+- 目的：
+  - 让复现者 Git clone 后主要依赖 Docker，不再手工匹配 Python、PyTorch、Transformers 和 Elasticsearch 版本。
+  - 固化“统一岗位主表 -> Elasticsearch BM25 -> 30 份简历 Top200 -> BGE-M3 重排 -> 银标”的当前实验环境。
+  - 模型权重不进入 GitHub，通过持久卷在首次下载后复用。
+- 效果/当前成果：
+  - `job-hunt-ai-toolkit:2026-06-13` 镜像构建成功。
+  - 隔离 Elasticsearch 8.11 容器启动并达到 healthy 状态。
+  - 在复现容器中写入 `chinese_jobs_v1` 共 23,714 条，失败 0 条。
+  - 一键 PowerShell 脚本 `-Mode cpu -Stage bm25` 实际运行成功，30 份简历均得到 Top200，共 6,000 个候选。
+  - BGE-M3 的 2.27GB 权重已验证可从 Docker 持久卷离线解析；CPU 容器完成 1 条文本编码，输出 `(1, 1024)`。
+  - GPU 容器可识别 RTX 4060 和 CUDA，但本次 Docker Desktop 的 CUDA 内存记账异常阻止完整模型迁移到 GPU；宿主机此前已完成 617 段文本的完整 BGE-M3 重排，现有实验结果未受影响。
+- 运行问题记录：
+  - 首次 `docker compose --wait` 遇到 Docker Desktop Engine API 500，异常中断使新容器的 `elasticsearch.keystore` 截断；删除并重建该隔离容器后恢复正常，因此复现脚本不再使用 `--wait`。
+  - 直接按模型名离线加载时，新版 Transformers 仍尝试查询模型元数据；改为先解析本地 snapshot 路径后，离线 tokenizer 和模型加载成功。
+  - 本机 Docker GPU 运行时报告显存仍有约 6GB 空闲，却返回异常的进程内存计数并触发 OOM；README 保留 CPU 模式作为兼容回退，其他机器应先用脚本的 GPU 模式实测。
+  - 手工将宿主机模型缓存复制到测试卷时，Compose 会提示该卷不是由 Compose 创建；全新复现者由 Compose 自动创建卷，不会出现此警告。
+- 下一步建议：
+  - 在另一台 NVIDIA + Docker Desktop 机器执行 `reproduce.ps1 -Mode gpu -Stage rerank`，补充跨机器 GPU 复现记录。
+  - 将当前离线实验封装成常驻 Embedding 服务和 FastAPI 在线预测接口。
+  - 完成中文前端适配，并在 Neo4j 图谱完成后加入图扩展和技能差距解释。
