@@ -169,13 +169,15 @@ raw
 - `tags`：企业接口里的岗位族、部门、产品线、经验等标签。
 - `raw`：保留企业接口原始字段，便于后续做字段扩展或证据追溯。
 
-## 后续建议
+## 后续打算做的
+- 继续补充jb数据集
+- 补充简历数据集
+- 根据dataset里面的要求和模板，人工打上金标
+- 做近增强版的去重（看情况看看要不要做岗位归一、技能标准化（用于构建知识图谱））
+- 将技能抽取升级为 NLP 版本
+- 新岗位发现和既有岗位更新（需补充并整理出24年左右的旧数据集、26年的新数据集）
+- 完善知识图谱
 
-1. 抽查 CSV 中 30-50 条 JD，确认岗位标题、企业、职责文本没有串列。
-2. 用 `job_description` 做技能短语抽取，形成“岗位-技能”初始边。
-3. 用 `source_name`、`publish_time`、`location` 支撑后续动态演化和区域分析。
-4. 后续继续增加百度、阿里、美团、科大讯飞、小米、京东等企业官网公开源，提高行业覆盖度。
-5. 公共部门数据优先收集国家公务员、省考、事业单位、国企校招/社招职位表，形成“企业岗位”和“公共岗位”的对照样本。
 ## 合并企业岗位与公务员岗位
 
 在 `dataset/` 目录执行：
@@ -243,3 +245,101 @@ RTX 4060 8GB 建议使用 `--batch-size 2`。结果输出到 `dataset/retrieval/
 - `experiment_summary.json`：运行耗时、相似度、排名变化和银标分布统计。
 
 银标是自动规则标签，只用于开发、抽样和人工金标候选池构造，不能当作最终测试真值。
+
+## JD 技能抽取与标准化
+
+该步骤位于统一岗位主表生成之后、图谱和人工金标之前。它不会修改现有 BM25/BGE-M3 实验结果，只是在 `dataset/structured/` 下新增岗位技能结构化输出。
+
+在 `dataset/` 目录执行：
+
+```powershell
+npm run extract:job-skills
+```
+
+等价于：
+
+```powershell
+python scripts/extract_job_skills.py
+```
+
+默认输入：
+
+```text
+dataset/cleaned/all_jobs_23714_normalized.jsonl
+dataset/config/skill_aliases.json
+```
+
+默认输出：
+
+```text
+dataset/structured/skill_alias_table.csv
+dataset/structured/job_skill_mentions.jsonl
+dataset/structured/job_skill_mentions.csv
+dataset/structured/job_skill_extract_report.json
+```
+
+`job_skill_mentions.jsonl` 一行表示一个岗位中的一个技能命中，包含标准技能名和证据句，例如：
+
+```json
+{
+  "job_id": "job_2e8a95fed4174a85fb3a",
+  "job_title": "AI Infra高级工程师",
+  "raw_skill": "PyTorch",
+  "normalized_skill": "PyTorch",
+  "category": "数据与算法",
+  "span_text": "PyTorch",
+  "span_start": 11,
+  "span_end": 18,
+  "skillspan_label": "knowledge",
+  "skill_type": "required",
+  "evidence_sentence": "对接主流AI框架（如PyTorch、TensorFlow）",
+  "confidence": 1.0,
+  "match_method": "dictionary"
+}
+```
+
+第一版采用确定性词典匹配，不调用 LLM。设计上借鉴 SkillSpan 这类 span-level 数据集：抽取结果必须来自 JD 原文，并保留 `evidence_sentence`、`span_text`、`span_start`、`span_end`，方便后续人工抽查、金标标注和图谱导入。
+
+详细说明见：
+
+```text
+dataset/structured/README_job_skill_extraction.md
+```
+
+## Neo4j Job-Skill 图谱与 UI
+
+该步骤位于 `JD 技能抽取与标准化` 之后，用 `structured/job_skill_mentions.jsonl` 构建第一版岗位-技能图谱。
+
+生成本地图谱 JSON：
+
+```powershell
+npm run graph:build
+```
+
+如需导入 Neo4j，先配置连接信息后执行：
+
+```powershell
+$env:NEO4J_URI="bolt://localhost:7687"
+$env:NEO4J_USER="neo4j"
+$env:NEO4J_PASSWORD="你的密码"
+npm run graph:import
+```
+
+打开本地 UI：
+
+```powershell
+npm run graph:ui
+```
+
+然后访问：
+
+```text
+http://localhost:8010/ui/job_skill_graph.html
+```
+
+详细说明见：
+
+```text
+graph/README_neo4j_job_skill_graph.md
+```
+
